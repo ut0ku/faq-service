@@ -1,0 +1,42 @@
+{
+  "sections": [
+    {
+      "name": "Python",
+      "is_active": true
+    }
+  ],
+  "questions": [
+    {
+      "id": 1,
+      "section": "Python",
+      "title": "Как преобразовать строку в число?",
+      "text": "Как из str получить int?",
+      "author": "maria_smirnova",
+      "created_at": "2026-09-15",
+      "status": "open",
+      "answers": [
+        {
+          "author": "ivan_petrov",
+          "text": "Используйте функцию int(), например: int('42')",
+          "created_at": "2026-09-16"
+        }
+      ]
+    },
+    {
+      "id": 2,
+      "section": "Python",
+      "title": "Python",
+      "text": "Что такое Python?",
+      "author": "ivan_petrov",
+      "created_at": "2026-10-01",
+      "status": "open",
+      "answers": [
+        {
+          "author": "ivan_petrov",
+          "text": "Python - язык программирования",
+          "created_at": "2026-10-01"
+        }
+      ]
+    }
+  ]
+}
