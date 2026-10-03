@@ -39,14 +39,11 @@ def _show_questions(questions: list[Question]) -> None:
         return
 
     for question in question_list:
-        print(
-            f"[{question.id}] {question.title} "
-            f"({question.status}, {question.section}, {question.author})"
-        )
+        print(question)
         print(f"  {question.text}")
         print(f"  {get_question_age(question.created_at, date.today())}")
         for answer in question.answers:
-            print(f"  Ответ {answer.author}: {answer.text}")
+            print(f"  {answer}")
 
 
 def _show_help() -> None:

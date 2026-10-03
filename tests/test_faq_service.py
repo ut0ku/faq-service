@@ -6,7 +6,7 @@ from datetime import date
 import pytest
 
 import main as faq_app
-from models import Section, create_initial_data
+from models import Answer, Question, Section, User, create_initial_data
 from questions import (
     close_question,
     create_answer,
@@ -63,6 +63,28 @@ def test_admin_can_close_question() -> None:
     close_question("admin", questions[0])
 
     assert questions[0].status == "closed"
+
+
+def test_models_represent_authors_and_own_question_behavior() -> None:
+    _, questions = create_initial_data()
+    question = questions[0]
+    answer = Answer(User("anna"), "Полезный ответ", date(2026, 9, 20))
+
+    question.add_answer(answer)
+    assert isinstance(question.author, User)
+    assert isinstance(answer.author, User)
+    assert all(
+        "__init__" in model.__dict__
+        for model in (User, Section, Answer, Question)
+    )
+    assert str(Section("Python")) == "Python"
+    assert str(question).startswith("[1] Как преобразовать")
+    assert str(answer) == "Ответ anna: Полезный ответ"
+
+    question.close()
+    assert question.status == "closed"
+    with pytest.raises(ValueError, match="Вопрос закрыт"):
+        question.add_answer(answer)
 
 
 def test_search_generator_and_sorting() -> None:

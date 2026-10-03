@@ -3,7 +3,7 @@
 from collections.abc import Iterable, Iterator
 from datetime import date
 
-from models import Answer, Question, Section
+from models import Answer, Question, Section, User
 
 ROLE_PERMISSIONS = {
     "guest": "Гость: может только просматривать вопросы и ответы",
@@ -49,7 +49,7 @@ def create_question(
         section=section.name,
         title=clean_title,
         text=clean_text,
-        author=author,
+        author=User(author),
         created_at=created_at or date.today(),
     )
     questions.append(question)
@@ -82,14 +82,12 @@ def create_answer(
         raise PermissionError("Недостаточно прав для ответа")
 
     question = find_question(question_id, questions)
-    if question.status == "closed":
-        raise ValueError("Вопрос закрыт, ответить нельзя")
     clean_text = text.strip()
     if not clean_text:
         raise ValueError("Текст ответа не может быть пустым")
 
-    answer = Answer(author, clean_text, created_at or date.today())
-    question.answers.append(answer)
+    answer = Answer(User(author), clean_text, created_at or date.today())
+    question.add_answer(answer)
     return answer
 
 
@@ -99,9 +97,7 @@ def close_question(role: str, question: Question) -> None:
         raise PermissionError(
             "Закрывать обсуждение может только администратор"
         )
-    if question.status == "closed":
-        raise ValueError("Обсуждение уже закрыто")
-    question.status = "closed"
+    question.close()
 
 
 def iter_questions(
@@ -128,7 +124,7 @@ def search_questions(
                 question.title,
                 question.text,
                 question.section,
-                question.author,
+                question.author.name,
                 *(answer.text for answer in question.answers),
             ]
         ).casefold()
