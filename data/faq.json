@@ -37,6 +37,22 @@
           "created_at": "2026-10-01"
         }
       ]
+    },
+    {
+      "id": 3,
+      "section": "Python",
+      "title": "2 + 2",
+      "text": "сколько будет 2 + 2",
+      "author": "ivan_petrov",
+      "created_at": "2026-10-03",
+      "status": "closed",
+      "answers": [
+        {
+          "author": "ivan_petrov",
+          "text": "ответ 4",
+          "created_at": "2026-10-03"
+        }
+      ]
     }
   ]
 }
