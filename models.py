@@ -15,7 +15,7 @@ def _require_string(data: Mapping[str, object], key: str) -> str:
     value = data.get(key)
     if not isinstance(value, str) or not value.strip():
         raise ValueError(f"Поле {key} должно быть непустой строкой")
-    return value
+    return value.strip()
 
 
 def _require_date(data: Mapping[str, object], key: str) -> date:
@@ -33,7 +33,7 @@ class User:
     name: str
 
     def __init__(self, name: str) -> None:
-        self.name = name
+        self.name = name.strip()
 
     def __str__(self) -> str:
         """Вернуть имя пользователя."""
@@ -48,7 +48,7 @@ class Section:
     is_active: bool = True
 
     def __init__(self, name: str, is_active: bool = True) -> None:
-        self.name = name
+        self.name = name.strip()
         self.is_active = is_active
 
     def to_dict(self) -> dict[str, object]:
@@ -79,7 +79,7 @@ class Answer:
 
     def __init__(self, author: User, text: str, created_at: date) -> None:
         self.author = author
-        self.text = text
+        self.text = text.strip()
         self.created_at = created_at
 
     def to_dict(self) -> dict[str, str]:
@@ -130,12 +130,12 @@ class Question:
         answers: list[Answer] | None = None,
     ) -> None:
         self.id = id
-        self.section = section
-        self.title = title
-        self.text = text
+        self.section = section.strip()
+        self.title = title.strip()
+        self.text = text.strip()
         self.author = author
         self.created_at = created_at
-        self.status = status
+        self.status = status.strip().casefold()
         self.answers = answers if answers is not None else []
 
     def to_dict(self) -> dict[str, object]:

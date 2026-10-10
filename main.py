@@ -133,9 +133,10 @@ def main() -> None:
                             "Имя пользователя не может быть пустым"
                         )
                     selected_role = input("Роль (guest/user/admin): ").strip()
-                    if selected_role not in ROLES:
+                    normalized_role = selected_role.casefold()
+                    if normalized_role not in ROLES:
                         raise ValueError("Неизвестная роль")
-                    role = selected_role
+                    role = normalized_role
                     print(get_role_permissions(role))
                 elif choice == "7":
                     _show_help()

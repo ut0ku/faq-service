@@ -14,7 +14,8 @@ ROLE_PERMISSIONS = {
 
 def get_role_permissions(role: str) -> str:
     """Вернуть понятное описание прав роли."""
-    return ROLE_PERMISSIONS.get(role, "Неизвестная роль")
+    normalized_role = (role or "").strip().casefold()
+    return ROLE_PERMISSIONS.get(normalized_role, "Неизвестная роль")
 
 
 def create_question(
@@ -28,11 +29,12 @@ def create_question(
     created_at: date | None = None,
 ) -> Question:
     """Проверить и добавить вопрос, вернуть созданную запись."""
+    normalized_role = (role or "").strip().casefold()
     if not is_authenticated:
         raise PermissionError("Необходимо авторизоваться")
-    if role == "guest":
+    if normalized_role == "guest":
         raise PermissionError("Гость не может создавать вопросы")
-    if role not in {"user", "admin"}:
+    if normalized_role not in {"user", "admin"}:
         raise PermissionError("Недостаточно прав для создания вопроса")
     if not section.is_active:
         raise ValueError("Раздел закрыт для публикации вопросов")
@@ -74,11 +76,12 @@ def create_answer(
     created_at: date | None = None,
 ) -> Answer:
     """Проверить и прикрепить ответ к открытому вопросу."""
+    normalized_role = (role or "").strip().casefold()
     if not is_authenticated:
         raise PermissionError("Необходимо авторизоваться")
-    if role == "guest":
+    if normalized_role == "guest":
         raise PermissionError("Гость не может отвечать на вопросы")
-    if role not in {"user", "admin"}:
+    if normalized_role not in {"user", "admin"}:
         raise PermissionError("Недостаточно прав для ответа")
 
     question = find_question(question_id, questions)
@@ -93,7 +96,7 @@ def create_answer(
 
 def close_question(role: str, question: Question) -> None:
     """Закрыть обсуждение; это доступно только администратору."""
-    if role != "admin":
+    if (role or "").strip().casefold() != "admin":
         raise PermissionError(
             "Закрывать обсуждение может только администратор"
         )
@@ -104,8 +107,9 @@ def iter_questions(
     questions: Iterable[Question], status: str | None = None
 ) -> Iterator[Question]:
     """Возвращать вопросы, при необходимости фильтруя по статусу."""
+    normalized_status = None if status is None else status.strip().casefold()
     for question in questions:
-        if status is None or question.status == status:
+        if normalized_status is None or question.status == normalized_status:
             yield question
 
 
@@ -114,7 +118,7 @@ def search_questions(
     questions: Iterable[Question],
 ) -> list[Question]:
     """Искать по заголовкам, текстам, разделам, авторам и ответам."""
-    search_term = query.strip().casefold()
+    search_term = str(query).strip().casefold()
     if not search_term:
         return list(questions)
     matches = []

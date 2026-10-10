@@ -1,0 +1,38 @@
+{% extends "base.html" %}
+
+{% block title %}Вопросы — FAQ Service{% endblock %}
+
+{% block content %}
+<h1 class="mb-4">Вопросы и ответы</h1>
+<p class="mb-4">
+    <a class="btn btn-primary" href="{% url 'faq:create' %}">
+        Задать вопрос
+    </a>
+</p>
+{% if questions %}
+    <div class="list-group">
+        {% for question in questions %}
+            <a
+                class="list-group-item list-group-item-action"
+                href="{% url 'faq:detail' question.id %}"
+            >
+                <div class="d-flex justify-content-between gap-3">
+                    <h2 class="h5 mb-1">{{ question.title }}</h2>
+                    <span class="badge {% if question.status == 'open' %}text-bg-success{% else %}text-bg-secondary{% endif %}">
+                        {% if question.status == "open" %}Открыт{% else %}Закрыт{% endif %}
+                    </span>
+                </div>
+                <p class="mb-1 text-body-secondary">
+                    {{ question.section }} · {{ question.author }}
+                </p>
+                <small>
+                    Ответов: {{ question.answers|length }} ·
+                    {{ question.created_at|date:"d.m.Y" }}
+                </small>
+            </a>
+        {% endfor %}
+    </div>
+{% else %}
+    <p class="text-body-secondary">Пока нет вопросов.</p>
+{% endif %}
+{% endblock %}

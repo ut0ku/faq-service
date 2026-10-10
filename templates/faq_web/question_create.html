@@ -1,0 +1,78 @@
+{% extends "base.html" %}
+
+{% block title %}Задать вопрос — FAQ Service{% endblock %}
+
+{% block content %}
+<p>
+    <a href="{% url 'faq:list' %}">&larr; Все вопросы</a>
+</p>
+<h1 class="h3 mb-4">Задать вопрос</h1>
+{% if error %}
+    <div class="alert alert-danger" role="alert">{{ error }}</div>
+{% endif %}
+<form method="post" class="card card-body">
+    {% csrf_token %}
+    <div class="mb-3">
+        <label class="form-label" for="question-author">Ваше имя</label>
+        <input
+            class="form-control"
+            id="question-author"
+            name="author"
+            maxlength="80"
+            value="{{ form_data.author }}"
+            required
+        >
+    </div>
+    <div class="mb-3">
+        <label class="form-label" for="question-section">Раздел</label>
+        <select
+            class="form-select"
+            id="question-section"
+            name="section"
+            required
+        >
+            <option value="">Выберите раздел</option>
+            {% for section in sections %}
+                <option
+                    value="{{ section.name }}"
+                    {% if form_data.section == section.name %}selected{% endif %}
+                >{{ section.name }}</option>
+            {% endfor %}
+        </select>
+        {% if not sections %}
+            <small class="form-text">
+                Нет активных разделов. Пока задать вопрос нельзя.
+            </small>
+        {% endif %}
+    </div>
+    <div class="mb-3">
+        <label class="form-label" for="question-title">Заголовок</label>
+        <input
+            class="form-control"
+            id="question-title"
+            name="title"
+            value="{{ form_data.title }}"
+            required
+        >
+    </div>
+    <div class="mb-3">
+        <label class="form-label" for="question-text">Текст вопроса</label>
+        <textarea
+            class="form-control"
+            id="question-text"
+            name="text"
+            rows="5"
+            required
+        >{{ form_data.text }}</textarea>
+    </div>
+    <div>
+        <button
+            class="btn btn-primary"
+            type="submit"
+            {% if not sections %}disabled{% endif %}
+        >
+            Опубликовать вопрос
+        </button>
+    </div>
+</form>
+{% endblock %}

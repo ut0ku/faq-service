@@ -1,0 +1,33 @@
+{% extends "base.html" %}
+
+{% block title %}Главная — FAQ Service{% endblock %}
+
+{% block content %}
+<section class="p-4 p-md-5 mb-4 bg-white rounded-3 shadow-sm">
+    <h1 class="display-5">Сервис вопросов и ответов</h1>
+    <p class="lead">
+        Найдите ответ в базе знаний или посмотрите, о чём спрашивают другие.
+    </p>
+    <a class="btn btn-primary" href="{% url 'faq:list' %}">
+        Перейти к вопросам
+    </a>
+</section>
+<section class="row g-3" aria-label="Сводка FAQ">
+    <div class="col-sm-6">
+        <div class="card h-100">
+            <div class="card-body">
+                <h2 class="h5 card-title">Вопросы</h2>
+                <p class="card-text">{{ question_count }} в базе знаний</p>
+            </div>
+        </div>
+    </div>
+    <div class="col-sm-6">
+        <div class="card h-100">
+            <div class="card-body">
+                <h2 class="h5 card-title">Разделы</h2>
+                <p class="card-text">{{ section_count }} тематических раздела</p>
+            </div>
+        </div>
+    </div>
+</section>
+{% endblock %}

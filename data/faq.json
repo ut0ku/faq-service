@@ -53,6 +53,22 @@
           "created_at": "2026-10-03"
         }
       ]
+    },
+    {
+      "id": 4,
+      "section": "Python",
+      "title": "5 + 5",
+      "text": "Сколько будет 5 + 5??",
+      "author": "Nikita",
+      "created_at": "2026-10-09",
+      "status": "open",
+      "answers": [
+        {
+          "author": "Ivan",
+          "text": "10",
+          "created_at": "2026-10-09"
+        }
+      ]
     }
   ]
 }
