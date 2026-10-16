@@ -9,13 +9,11 @@
 <article class="card">
     <div class="card-body">
         <div class="d-flex justify-content-between gap-3">
-            <h1 class="h3">{{ question.title }}</h1>
-            <span class="badge align-self-start {% if question.status == 'open' %}text-bg-success{% else %}text-bg-secondary{% endif %}">
-                {% if question.status == "open" %}Открыт{% else %}Закрыт{% endif %}
-            </span>
+            <h1 class="h3">{{ question.title|default:"Без заголовка" }}</h1>
+            {% include "faq_web/includes/question_status.html" with question=question %}
         </div>
         <p class="text-body-secondary">
-            Раздел: {{ question.section }} · Автор: {{ question.author }} ·
+            Раздел: {{ question.section|upper }} · Автор: {{ question.author }} ·
             {{ question.created_at|date:"d.m.Y" }}
         </p>
         <p class="question-text">{{ question.text }}</p>

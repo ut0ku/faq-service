@@ -29,6 +29,47 @@ def question_list(request):
     )
 
 
+def section_list(request):
+    """Показать разделы FAQ или вопросы выбранного раздела."""
+    sections, questions = load_data(_data_path())
+    section_name = request.GET.get("section", "")
+    selected_section = None
+    section_questions = []
+
+    if section_name:
+        selected_section = next(
+            (section for section in sections if section.name == section_name),
+            None,
+        )
+        if selected_section is None:
+            raise Http404("Раздел не найден")
+        section_questions = sort_questions(
+            question
+            for question in questions
+            if question.section == selected_section.name
+        )
+
+    active_sections = [
+        {
+            "section": section,
+            "question_count": sum(
+                question.section == section.name for question in questions
+            ),
+        }
+        for section in sections
+        if section.is_active
+    ]
+    return render(
+        request,
+        "faq_web/section_list.html",
+        {
+            "sections": active_sections,
+            "selected_section": selected_section,
+            "questions": section_questions,
+        },
+    )
+
+
 @require_http_methods(["GET", "POST"])
 def question_create(request):
     """Показать форму и сохранить новый вопрос в JSON."""

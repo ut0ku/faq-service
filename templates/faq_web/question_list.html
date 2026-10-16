@@ -17,10 +17,10 @@
                 href="{% url 'faq:detail' question.id %}"
             >
                 <div class="d-flex justify-content-between gap-3">
-                    <h2 class="h5 mb-1">{{ question.title }}</h2>
-                    <span class="badge {% if question.status == 'open' %}text-bg-success{% else %}text-bg-secondary{% endif %}">
-                        {% if question.status == "open" %}Открыт{% else %}Закрыт{% endif %}
-                    </span>
+                    <h2 class="h5 mb-1">
+                        {{ question.title|default:"Без заголовка" }}
+                    </h2>
+                    {% include "faq_web/includes/question_status.html" with question=question %}
                 </div>
                 <p class="mb-1 text-body-secondary">
                     {{ question.section }} · {{ question.author }}

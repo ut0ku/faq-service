@@ -12,6 +12,7 @@ def index(request):
     context = {
         "section_count": len(sections),
         "question_count": len(questions),
+        "questions": questions,
     }
     return render(request, "homepage/index.html", context)
 

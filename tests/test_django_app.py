@@ -1,5 +1,6 @@
 """Проверки страниц Django-приложения FAQ."""
 
+import json
 import shutil
 import tempfile
 from pathlib import Path
@@ -46,6 +47,57 @@ class FaqPagesTests(SimpleTestCase):
         self.assertContains(response, "Как из str получить int?")
         self.assertContains(response, "Используйте функцию int()")
 
+    def test_section_page_lists_sections_and_questions(self):
+        sections_response = self.client.get("/faq/sections/")
+
+        self.assertEqual(sections_response.status_code, 200)
+        self.assertContains(sections_response, "Тематические разделы")
+        self.assertContains(
+            sections_response,
+            'href="/faq/sections/?section=Python"',
+        )
+
+        questions_response = self.client.get(
+            "/faq/sections/",
+            {"section": "Python"},
+        )
+        self.assertEqual(questions_response.status_code, 200)
+        self.assertContains(
+            questions_response,
+            "Вопросы раздела «Python»",
+        )
+        self.assertContains(
+            questions_response,
+            "Как преобразовать строку в число?",
+        )
+
+    def test_section_page_handles_empty_sections(self):
+        data_path = self.data_dir / "data" / "faq.json"
+        data = json.loads(data_path.read_text(encoding="utf-8"))
+        data["sections"].append({"name": "Новый раздел", "is_active": True})
+        data_path.write_text(
+            json.dumps(data, ensure_ascii=False),
+            encoding="utf-8",
+        )
+
+        response = self.client.get(
+            "/faq/sections/",
+            {"section": "Новый раздел"},
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "В этом разделе пока нет вопросов.")
+
+    @override_settings(DEBUG=False, ALLOWED_HOSTS=["testserver"])
+    def test_missing_section_uses_custom_404_page(self):
+        response = self.client.get(
+            "/faq/sections/",
+            {"section": "Несуществующий раздел"},
+        )
+
+        self.assertEqual(response.status_code, 404)
+        self.assertContains(response, "Страница не найдена", status_code=404)
+
     def test_user_can_create_question(self):
         response = self.client.post(
             "/faq/new/",
@@ -84,6 +136,17 @@ class FaqPagesTests(SimpleTestCase):
         self.assertNotContains(list_response, "Нет")
 
     def test_user_can_answer_open_question(self):
+        data_path = self.data_dir / "data" / "faq.json"
+        data = json.loads(data_path.read_text(encoding="utf-8"))
+        question = next(
+            item for item in data["questions"] if item["id"] == 1
+        )
+        question["status"] = "open"
+        data_path.write_text(
+            json.dumps(data, ensure_ascii=False),
+            encoding="utf-8",
+        )
+
         response = self.client.post(
             "/faq/1/",
             {"author": "  alex  ", "text": "Новый ответ"},
