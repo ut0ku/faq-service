@@ -10,7 +10,7 @@
       "id": 1,
       "section": "Python",
       "title": "Как преобразовать строку в число?",
-      "text": "Как из str получить int?",
+      "text": "Как из str получить int? <b>жирный</b>",
       "author": "maria_smirnova",
       "created_at": "2026-09-15",
       "status": "closed",

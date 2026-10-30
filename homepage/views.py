@@ -6,6 +6,7 @@ from django.shortcuts import render
 from storage import load_data
 
 
+# представление к шаблону
 def index(request):
     """Показать главную страницу с краткой информацией о FAQ."""
     sections, questions = load_data(settings.BASE_DIR / "data" / "faq.json")

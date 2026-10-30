@@ -58,11 +58,13 @@ def create_question(
     return question
 
 
+# ищет вопрос по ID в списке
 def find_question(question_id: int, questions: Iterable[Question]) -> Question:
     """Найти вопрос по ID или сообщить, что его нет."""
     for question in questions:
         if question.id == question_id:
             return question
+    # если вопрос не найден, выбрасываем исключение
     raise LookupError(f"Вопрос с ID {question_id} не найден")
 
 

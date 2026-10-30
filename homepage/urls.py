@@ -4,6 +4,7 @@ from django.urls import path
 
 from . import views
 
+# пространство имен
 app_name = "homepage"
 
 urlpatterns = [

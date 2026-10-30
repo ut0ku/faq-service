@@ -6,6 +6,7 @@ from django.urls import include, path
 urlpatterns = [
     path("admin/", admin.site.urls),
     path("", include("homepage.urls")),
+    # подключение приложения faq_web
     path("faq/", include("faq_web.urls")),
 ]
 

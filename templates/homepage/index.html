@@ -1,8 +1,9 @@
 {% extends "base.html" %}
 
-{% block title %}Главная страница FAQ Service{% endblock %}
+{% block title %}Главная страница - FAQ Service{% endblock %}
 
 {% block content %}
+<!-- <p>Проверка блока content</p> -->
 <section class="p-4 p-md-5 mb-4 bg-white rounded-3 shadow-sm">
     <h1 class="display-5">Сервис вопросов и ответов</h1>
     <p class="lead">
@@ -18,6 +19,7 @@
             <div class="card-body">
                 <h2 class="h5 card-title">Вопросы</h2>
                 <p class="card-text">{{ question_count }} в базе знаний</p>
+                <!-- <p>{{ abcd_variable }}</p> -->
             </div>
         </div>
     </div>
@@ -30,4 +32,11 @@
         </div>
     </div>
 </section>
+<!-- Демонстрация отсутсвия элементов
+<h3 class="mt-4">Список вопросов</h3>
+{% for question in questions %}
+    <p>{{ question.title }}</p>
+{% empty %}
+    <p>Вопросов пока нет.</p>
+{% endfor %} -->
 {% endblock %}

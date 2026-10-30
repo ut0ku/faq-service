@@ -1,0 +1,35 @@
+{% extends "base.html" %}
+
+{% block title %}Статистика — FAQ Service{% endblock %}
+
+{% block content %}
+<h1 class="mb-4">Статистика FAQ</h1>
+<p>
+    Всего вопросов: {{ totals.questions_count }} ·
+    Всего ответов: {{ totals.answers_count }}
+</p>
+{% if sections %}
+    <div class="table-responsive">
+        <table class="table table-striped">
+            <thead>
+                <tr>
+                    <th scope="col">Раздел</th>
+                    <th scope="col">Вопросы</th>
+                    <th scope="col">Ответы</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for section in sections %}
+                    <tr>
+                        <th scope="row">{{ section.name }}</th>
+                        <td>{{ section.questions_count }}</td>
+                        <td>{{ section.answers_count }}</td>
+                    </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+{% else %}
+    <p class="text-body-secondary">Данные пока отсутствуют.</p>
+{% endif %}
+{% endblock %}

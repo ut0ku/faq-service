@@ -40,6 +40,13 @@ class FaqPagesTests(SimpleTestCase):
         self.assertContains(response, "Как преобразовать строку в число?")
         self.assertContains(response, 'href="/faq/1/"')
 
+    def test_question_list_can_filter_by_creation_date(self):
+        response = self.client.get("/faq/", {"date": "2026-10-01"})
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "Python · ivan_petrov")
+        self.assertNotContains(response, "Как преобразовать строку в число?")
+
     def test_question_detail_shows_answers(self):
         response = self.client.get("/faq/1/")
 
@@ -87,6 +94,15 @@ class FaqPagesTests(SimpleTestCase):
 
         self.assertEqual(response.status_code, 200)
         self.assertContains(response, "В этом разделе пока нет вопросов.")
+
+    def test_statistics_page_shows_question_and_answer_counts(self):
+        response = self.client.get("/faq/statistics/")
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "Статистика FAQ")
+        self.assertContains(response, "Всего вопросов: 5")
+        self.assertContains(response, "Всего ответов: 5")
+        self.assertContains(response, "Python")
 
     @override_settings(DEBUG=False, ALLOWED_HOSTS=["testserver"])
     def test_missing_section_uses_custom_404_page(self):

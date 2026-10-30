@@ -9,9 +9,33 @@
         Задать вопрос
     </a>
 </p>
+<form method="get" class="row g-2 align-items-end mb-4">
+    <div class="col-auto">
+        <label class="form-label" for="question-date">Дата вопроса</label>
+        <input
+            class="form-control"
+            id="question-date"
+            name="date"
+            type="date"
+            value="{{ question_date }}"
+        >
+    </div>
+    <div class="col-auto">
+        <button class="btn btn-outline-primary" type="submit">
+            Найти за дату
+        </button>
+        {% if question_date %}
+            <a class="btn btn-outline-secondary" href="{% url 'faq:list' %}">
+                Сбросить
+            </a>
+        {% endif %}
+    </div>
+</form>
 {% if questions %}
     <div class="list-group">
+        <!-- for перебор вопросов вывод в блок html, передаваемая коллекция views.py-->
         {% for question in questions %}
+        <!-- question.id - 5 -->
             <a
                 class="list-group-item list-group-item-action"
                 href="{% url 'faq:detail' question.id %}"
@@ -23,6 +47,7 @@
                     {% include "faq_web/includes/question_status.html" with question=question %}
                 </div>
                 <p class="mb-1 text-body-secondary">
+                    <!-- question.author|upper -->
                     {{ question.section }} · {{ question.author }}
                 </p>
                 <small>
