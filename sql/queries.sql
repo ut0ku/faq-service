@@ -6,16 +6,23 @@ JOIN sections AS s ON s.id = q.section_id
 JOIN users AS u ON u.id = q.user_id
 ORDER BY q.created_at DESC, q.id DESC;
 
+-- без связных таблиц
+--SELECT q.id, q.title, q.created_at
+--FROM questions AS q
+--ORDER BY q.created_at DESC;
+
 -- 2. Вопросы в выбранном статусе.
 SELECT id, title, created_at
 FROM questions
+--'closed' / 'open'
 WHERE status = ?
 ORDER BY created_at DESC;
 
 -- 3. Вопросы, созданные в выбранную дату.
 SELECT id, title, status
 FROM questions
-WHERE created_at = ?
+--'2026-10-09' / '2026-10-03'
+WHERE created_at = '2026-10-03'
 ORDER BY id;
 
 -- 4. Вопросы выбранного раздела.

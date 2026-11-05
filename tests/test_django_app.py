@@ -1,30 +1,66 @@
 """Проверки страниц Django-приложения FAQ."""
 
-import json
-import shutil
-import tempfile
-from pathlib import Path
-
 from django.conf import settings
-from django.test import Client, SimpleTestCase, override_settings
+from django.contrib.auth import get_user_model
+from django.test import Client, TestCase, override_settings
+from django.urls import reverse
+
+from faq_web.models import Answer, Question, Section, User
+from storage import load_data
 
 
-class FaqPagesTests(SimpleTestCase):
-    """Проверить основные маршруты и отображение данных FAQ."""
+class FaqPagesTests(TestCase):
+    """Проверить ORM-модели и основные маршруты FAQ."""
+
+    @classmethod
+    def setUpTestData(cls):
+        sections, questions = load_data(
+            settings.BASE_DIR / "data" / "faq.json"
+        )
+        section_models = {
+            section.name: Section.objects.create(
+                name=section.name,
+                is_active=section.is_active,
+            )
+            for section in sections
+        }
+        user_names = {
+            question.author.name
+            for question in questions
+        }
+        user_names.update(
+            answer.author.name
+            for question in questions
+            for answer in question.answers
+        )
+        users = {
+            name: User.objects.create(name=name)
+            for name in user_names
+        }
+        for question in questions:
+            question_model = Question.objects.create(
+                pk=question.id,
+                section=section_models[question.section],
+                author=users[question.author.name],
+                title=question.title,
+                text=question.text,
+                created_at=question.created_at,
+                status=question.status,
+            )
+            Answer.objects.bulk_create(
+                [
+                    Answer(
+                        question=question_model,
+                        author=users[answer.author.name],
+                        text=answer.text,
+                        created_at=answer.created_at,
+                    )
+                    for answer in question.answers
+                ]
+            )
 
     def setUp(self):
         self.client = Client()
-        self.temp_dir = tempfile.TemporaryDirectory()
-        self.addCleanup(self.temp_dir.cleanup)
-        self.data_dir = Path(self.temp_dir.name)
-        (self.data_dir / "data").mkdir()
-        shutil.copyfile(
-            settings.BASE_DIR / "data" / "faq.json",
-            self.data_dir / "data" / "faq.json",
-        )
-        settings_override = override_settings(BASE_DIR=self.data_dir)
-        settings_override.enable()
-        self.addCleanup(settings_override.disable)
 
     def test_homepage_shows_service_summary(self):
         response = self.client.get("/")
@@ -46,6 +82,65 @@ class FaqPagesTests(SimpleTestCase):
         self.assertEqual(response.status_code, 200)
         self.assertContains(response, "Python · ivan_petrov")
         self.assertNotContains(response, "Как преобразовать строку в число?")
+
+    def test_question_list_filters_by_section_author_and_search(self):
+        response = self.client.get(
+            "/faq/",
+            {
+                "date": "2026-10-01",
+                "section": "Python",
+                "author": "ivan",
+                "q": "Python",
+            },
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "Python · ivan_petrov")
+        self.assertNotContains(response, "Как преобразовать строку в число?")
+
+    def test_question_list_sorts_and_handles_invalid_parameters(self):
+        response = self.client.get("/faq/", {"sort": "title"})
+
+        self.assertEqual(response.context["questions"][0].pk, 3)
+        invalid_sort = self.client.get("/faq/", {"sort": "not-a-field"})
+        self.assertEqual(invalid_sort.context["sort"], "date")
+        invalid_date = self.client.get("/faq/", {"date": "not-a-date"})
+        self.assertContains(invalid_date, "Укажите корректную дату.")
+        self.assertContains(invalid_date, "Пока нет вопросов.")
+
+    def test_pagination_keeps_filters_and_sorting(self):
+        author = User.objects.get(name="ivan_petrov")
+        section = Section.objects.get(name="Python")
+        Question.objects.bulk_create(
+            [
+                Question(
+                    section=section,
+                    author=author,
+                    title=f"Дополнительный вопрос {number}",
+                    text="Тестовый текст",
+                    created_at="2026-10-11",
+                )
+                for number in range(6)
+            ]
+        )
+
+        response = self.client.get(
+            "/faq/",
+            {
+                "section": "Python",
+                "author": "ivan",
+                "sort": "title",
+                "page": "2",
+            },
+        )
+
+        self.assertEqual(response.context["page_obj"].number, 2)
+        self.assertContains(
+            response,
+            'href="?section=Python&amp;author=ivan&amp;sort=title&amp;page=1"',
+        )
+        invalid_page = self.client.get("/faq/", {"page": "abc"})
+        self.assertEqual(invalid_page.context["page_obj"].number, 1)
 
     def test_question_detail_shows_answers(self):
         response = self.client.get("/faq/1/")
@@ -79,13 +174,7 @@ class FaqPagesTests(SimpleTestCase):
         )
 
     def test_section_page_handles_empty_sections(self):
-        data_path = self.data_dir / "data" / "faq.json"
-        data = json.loads(data_path.read_text(encoding="utf-8"))
-        data["sections"].append({"name": "Новый раздел", "is_active": True})
-        data_path.write_text(
-            json.dumps(data, ensure_ascii=False),
-            encoding="utf-8",
-        )
+        Section.objects.create(name="Новый раздел")
 
         response = self.client.get(
             "/faq/sections/",
@@ -95,6 +184,45 @@ class FaqPagesTests(SimpleTestCase):
         self.assertEqual(response.status_code, 200)
         self.assertContains(response, "В этом разделе пока нет вопросов.")
 
+    def test_models_expose_related_objects_and_reverse_relations(self):
+        question = Question.objects.select_related(
+            "section",
+            "author",
+        ).get(pk=1)
+
+        self.assertEqual(question.section.name, "Python")
+        self.assertEqual(question.author.name, "maria_smirnova")
+        self.assertEqual(question.answers.count(), 1)
+        self.assertEqual(question.author.authored_questions.count(), 1)
+
+    def test_admin_can_update_and_delete_questions(self):
+        admin_user = get_user_model().objects.create_superuser(
+            username="faq_admin",
+            email="admin@example.com",
+            password="test-password",
+        )
+        self.client.force_login(admin_user)
+
+        response = self.client.post(
+            reverse("admin:faq_web_question_changelist"),
+            {
+                "action": "close_questions",
+                "_selected_action": ["2"],
+            },
+        )
+
+        self.assertEqual(response.status_code, 302)
+        question = Question.objects.get(pk=2)
+        self.assertEqual(question.status, Question.Status.CLOSED)
+
+        response = self.client.post(
+            reverse("admin:faq_web_question_delete", args=[question.pk]),
+            {"post": "yes"},
+        )
+
+        self.assertEqual(response.status_code, 302)
+        self.assertFalse(Question.objects.filter(pk=question.pk).exists())
+
     def test_statistics_page_shows_question_and_answer_counts(self):
         response = self.client.get("/faq/statistics/")
 
@@ -102,6 +230,8 @@ class FaqPagesTests(SimpleTestCase):
         self.assertContains(response, "Статистика FAQ")
         self.assertContains(response, "Всего вопросов: 5")
         self.assertContains(response, "Всего ответов: 5")
+        self.assertContains(response, "Открытых вопросов: 3")
+        self.assertContains(response, "Закрытых вопросов: 2")
         self.assertContains(response, "Python")
 
     @override_settings(DEBUG=False, ALLOWED_HOSTS=["testserver"])
@@ -152,16 +282,7 @@ class FaqPagesTests(SimpleTestCase):
         self.assertNotContains(list_response, "Нет")
 
     def test_user_can_answer_open_question(self):
-        data_path = self.data_dir / "data" / "faq.json"
-        data = json.loads(data_path.read_text(encoding="utf-8"))
-        question = next(
-            item for item in data["questions"] if item["id"] == 1
-        )
-        question["status"] = "open"
-        data_path.write_text(
-            json.dumps(data, ensure_ascii=False),
-            encoding="utf-8",
-        )
+        Question.objects.filter(pk=1).update(status=Question.Status.OPEN)
 
         response = self.client.post(
             "/faq/1/",

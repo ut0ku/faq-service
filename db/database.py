@@ -14,13 +14,17 @@ def get_database_path() -> Path:
     return base_dir / "data" / "faq.sqlite3"
 
 
+# Подключение Python к файлу SQLite
 def get_connection() -> sqlite3.Connection:
     """Создать подключение с внешними ключами и именованными строками."""
+    # формирование пути к faq.sqlite3
     database_path = get_database_path()
+    # создание папки data, если ее нет
     database_path.parent.mkdir(parents=True, exist_ok=True)
-    connection = sqlite3.connect(database_path)
+    connection = sqlite3.connect(database_path)  # подключение к бд
+    # обращение к результатам запроса по имени столбцов
     connection.row_factory = sqlite3.Row
-    connection.execute("PRAGMA foreign_keys = ON")
+    connection.execute("PRAGMA foreign_keys = ON")  # проверка внешних ключей
     return connection
 
 

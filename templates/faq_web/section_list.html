@@ -20,7 +20,9 @@
                         {% include "faq_web/includes/question_status.html" with question=question %}
                     </div>
                     <small class="text-body-secondary">
-                        {{ question.author }} · {{ question.created_at|date:"d.m.Y" }}
+                        {{ question.author.name }} ·
+                        {{ question.created_at|date:"d.m.Y" }} ·
+                        Ответов: {{ question.answer_count }}
                     </small>
                 </a>
             {% endfor %}
@@ -37,10 +39,10 @@
             {% for item in sections %}
                 <a
                     class="list-group-item list-group-item-action"
-                    href="{% url 'faq:sections' %}?section={{ item.section.name|urlencode }}"
+                    href="{% url 'faq:sections' %}?section={{ item.name|urlencode }}"
                 >
                     <div class="d-flex justify-content-between gap-3">
-                        <h2 class="h5 mb-1">{{ item.section.name }}</h2>
+                        <h2 class="h5 mb-1">{{ item.name }}</h2>
                         <span class="badge text-bg-primary">
                             {{ item.question_count }}
                         </span>

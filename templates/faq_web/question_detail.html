@@ -14,22 +14,23 @@
             {% include "faq_web/includes/question_status.html" with question=question %}
         </div>
         <p class="text-body-secondary">
-            <!-- question.author | question.name -->
-            Раздел: {{ question.section }} · Автор: {{ question.author }} ·
+            Раздел: {{ question.section.name }} ·
+            Автор: {{ question.author.name }} ·
             {{ question.created_at|date:"d.m.Y" }}
         </p>
-        <p class="question-text">{{ question.text }}</p> <!-- |safe -->
+        <p class="question-text">{{ question.text }}</p>
     </div>
 </article>
 
 <section class="mt-4">
-    <h2 class="h4">Ответы ({{ question.answers|length }})</h2>
-    {% for answer in question.answers %}
+    <h2 class="h4">Ответы ({{ answers|length }})</h2>
+    {% for answer in answers %}
         <article class="card mb-3">
             <div class="card-body">
                 <p class="question-text">{{ answer.text }}</p>
                 <small class="text-body-secondary">
-                    {{ answer.author }} · {{ answer.created_at|date:"d.m.Y" }}
+                    {{ answer.author.name }} ·
+                    {{ answer.created_at|date:"d.m.Y" }}
                 </small>
             </div>
         </article>

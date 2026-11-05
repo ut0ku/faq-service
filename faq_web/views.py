@@ -1,153 +1,118 @@
-"""Представления для списка вопросов и их подробных страниц."""
+"""Представления сервиса вопросов и ответов."""
 
-import sqlite3
-from contextlib import closing
 from datetime import date
 
-from django.http import Http404
-from django.shortcuts import redirect, render
+from django.core.paginator import Paginator
+from django.db import transaction
+from django.db.models import Count, F, Prefetch, Q
+from django.shortcuts import get_object_or_404, redirect, render
 from django.views.decorators.http import require_http_methods
 
-from db.database import ensure_database, get_connection
-from models import Answer, Question, Section, User
+from models import Answer as DomainAnswer
+from models import Question as DomainQuestion
+from models import Section as DomainSection
+from models import User as DomainUser
 from questions import create_answer, create_question
 
-
-def _connection() -> sqlite3.Connection:
-    """Вернуть подключение после подготовки базы при первом запуске."""
-    ensure_database()
-    return get_connection()
+from .models import Answer, Question, Section, User
 
 
-def _load_questions(
-    connection: sqlite3.Connection,
-    section_name: str | None = None,
-    created_at: str | None = None,
-) -> list[Question]:
-    """Получить вопросы и ответы из SQLite в объектах предметной области."""
-    query = """
-        SELECT
-            q.id, q.title, q.text, q.created_at, q.status,
-            s.name AS section_name, u.name AS question_author,
-            a.text AS answer_text, a.created_at AS answer_created_at,
-            answer_user.name AS answer_author
-        FROM questions AS q
-        JOIN sections AS s ON s.id = q.section_id
-        JOIN users AS u ON u.id = q.user_id
-        LEFT JOIN answers AS a ON a.question_id = q.id
-        LEFT JOIN users AS answer_user ON answer_user.id = a.user_id
-    """
-    conditions = []
-    parameters = []
-    if section_name is not None:
-        conditions.append("s.name = ?")
-        parameters.append(section_name)
-    if created_at is not None:
-        conditions.append("q.created_at = ?")
-        parameters.append(created_at)
-    if conditions:
-        query += " WHERE " + " AND ".join(conditions)
-    query += " ORDER BY q.created_at DESC, q.id DESC, a.id"
-
-    questions = {}
-    for row in connection.execute(query, parameters):
-        question = questions.get(row["id"])
-        if question is None:
-            question = Question(
-                id=row["id"],
-                section=row["section_name"],
-                title=row["title"],
-                text=row["text"],
-                author=User(row["question_author"]),
-                created_at=date.fromisoformat(row["created_at"]),
-                status=row["status"],
-            )
-            questions[question.id] = question
-        if row["answer_text"] is not None:
-            question.answers.append(
-                Answer(
-                    author=User(row["answer_author"]),
-                    text=row["answer_text"],
-                    created_at=date.fromisoformat(row["answer_created_at"]),
-                )
-            )
-    return list(questions.values())
-
-
-def _get_or_create_user_id(
-    connection: sqlite3.Connection,
-    name: str,
-) -> int:
-    """Найти пользователя по имени или добавить его."""
-    row = connection.execute(
-        "SELECT id FROM users WHERE name = ?",
-        (name,),
-    ).fetchone()
-    if row is not None:
-        return row["id"]
-    cursor = connection.execute(
-        "INSERT INTO users (name) VALUES (?)",
-        (name,),
+def _questions_with_answers():
+    return Question.objects.select_related(
+        "section",
+        "author",
+    ).prefetch_related(
+        Prefetch(
+            "answers",
+            queryset=Answer.objects.select_related("author").order_by("pk"),
+        )
     )
-    return cursor.lastrowid
 
 
 def question_list(request):
-    """Показать вопросы из SQLite; при необходимости отфильтровать по дате."""
+    """Показать вопросы с фильтрами, сортировкой и постраничным выводом."""
     question_date = request.GET.get("date", "").strip()
-    with closing(_connection()) as connection:
-        questions = _load_questions(
-            connection,
-            created_at=question_date or None,
-        )
+    section_name = request.GET.get("section", "").strip()
+    author_name = request.GET.get("author", "").strip()
+    search_query = request.GET.get("q", "").strip()
+    sort = request.GET.get("sort", "date").strip()
+    sort_fields = {
+        "date": "-created_at",
+        "title": "title",
+        "section": "section__name",
+        "author": "author__name",
+    }
+    if sort not in sort_fields:
+        sort = "date"
+
+    questions = _questions_with_answers().annotate(
+        section_name=F("section__name"),
+        author_name=F("author__name"),
+        answer_count=Count("answers", distinct=True),
+    )
+    error = ""
+    if question_date:
+        try:
+            selected_date = date.fromisoformat(question_date)
+        except ValueError:
+            error = "Укажите корректную дату."
+            questions = questions.none()
+        else:
+            questions = questions.filter(created_at=selected_date)
+    if section_name:
+        questions = questions.filter(section__name=section_name)
+    if author_name:
+        questions = questions.filter(author__name__icontains=author_name)
+    if search_query:
+        questions = questions.filter(
+            Q(title__icontains=search_query)
+            | Q(text__icontains=search_query)
+            | Q(section__name__icontains=search_query)
+            | Q(author__name__icontains=search_query)
+            | Q(answers__text__icontains=search_query)
+        ).distinct()
+
+    questions = questions.order_by(sort_fields[sort], "pk")
+    page_obj = Paginator(questions, 5).get_page(request.GET.get("page"))
     return render(
         request,
         "faq_web/question_list.html",
-        {"questions": questions, "question_date": question_date},
+        {
+            "questions": page_obj,
+            "page_obj": page_obj,
+            "question_date": question_date,
+            "selected_section": section_name,
+            "author_name": author_name,
+            "search_query": search_query,
+            "sort": sort,
+            "sections": Section.objects.filter(
+                is_active=True
+            ).order_by("name"),
+            "error": error,
+        },
     )
 
 
 def section_list(request):
-    """Показать разделы FAQ или вопросы выбранного раздела."""
-    section_name = request.GET.get("section", "")
-    with closing(_connection()) as connection:
-        if section_name:
-            row = connection.execute(
-                "SELECT name, is_active FROM sections WHERE name = ?",
-                (section_name,),
-            ).fetchone()
-            if row is None:
-                raise Http404("Раздел не найден")
-            selected_section = Section(row["name"], bool(row["is_active"]))
-            section_questions = _load_questions(
-                connection,
-                section_name=selected_section.name,
-            )
-            active_sections = []
-        else:
-            selected_section = None
-            section_questions = []
-            active_sections = [
-                {
-                    "section": Section(row["name"], bool(row["is_active"])),
-                    "question_count": row["question_count"],
-                }
-                for row in connection.execute(
-                    """
-                    SELECT s.name, s.is_active, COUNT(q.id) AS question_count
-                    FROM sections AS s
-                    LEFT JOIN questions AS q ON q.section_id = s.id
-                    WHERE s.is_active = 1
-                    GROUP BY s.id, s.name, s.is_active
-                    ORDER BY s.name
-                    """
-                )
-            ]
+    """Показать активные разделы или вопросы выбранного раздела."""
+    section_name = request.GET.get("section", "").strip()
+    if section_name:
+        selected_section = get_object_or_404(Section, name=section_name)
+        section_questions = _questions_with_answers().filter(
+            section=selected_section
+        ).annotate(answer_count=Count("answers", distinct=True))
+        sections = []
+    else:
+        selected_section = None
+        section_questions = []
+        sections = Section.objects.filter(is_active=True).annotate(
+            question_count=Count("questions", distinct=True)
+        ).order_by("name")
     return render(
         request,
         "faq_web/section_list.html",
         {
-            "sections": active_sections,
+            "sections": sections,
             "selected_section": selected_section,
             "questions": section_questions,
         },
@@ -156,76 +121,51 @@ def section_list(request):
 
 @require_http_methods(["GET", "POST"])
 def question_create(request):
-    """Показать форму и сохранить новый вопрос в SQLite."""
-    with closing(_connection()) as connection:
-        active_sections = [
-            Section(row["name"], bool(row["is_active"]))
-            for row in connection.execute(
-                "SELECT name, is_active FROM sections "
-                "WHERE is_active = 1 ORDER BY name"
-            )
-        ]
-        questions = (
-            _load_questions(connection) if request.method == "POST" else []
+    """Показать форму и сохранить новый вопрос через ORM."""
+    active_sections = Section.objects.filter(is_active=True).order_by("name")
+    error = ""
+    if request.method == "POST":
+        author_name = request.POST.get("author", "").strip()
+        title = request.POST.get("title", "")
+        text = request.POST.get("text", "")
+        selected_section = active_sections.filter(
+            name=request.POST.get("section", "")
+        ).first()
+        domain_section = (
+            DomainSection(selected_section.name, selected_section.is_active)
+            if selected_section is not None
+            else None
         )
-        if request.method == "POST":
-            author = request.POST.get("author", "").strip()
-            title = request.POST.get("title", "")
-            text = request.POST.get("text", "")
-            section = next(
-                (
-                    item
-                    for item in active_sections
-                    if item.name == request.POST.get("section", "")
-                ),
-                None,
-            )
-            error = ""
-            if not author:
-                error = "Укажите имя автора."
-            elif section is None:
-                error = "Выберите доступный раздел."
-            else:
-                try:
-                    question = create_question(
-                        questions,
-                        section,
-                        role="user",
-                        is_authenticated=True,
-                        title=title,
-                        text=text,
-                        author=author,
-                    )
-                except (PermissionError, ValueError) as exception:
-                    error = str(exception)
-                else:
-                    section_id = connection.execute(
-                        "SELECT id FROM sections WHERE name = ?",
-                        (section.name,),
-                    ).fetchone()["id"]
-                    user_id = _get_or_create_user_id(connection, author)
-                    connection.execute(
-                        """
-                        INSERT INTO questions (
-                            id, section_id, user_id, title, text, created_at,
-                            status
-                        )
-                        VALUES (?, ?, ?, ?, ?, ?, ?)
-                        """,
-                        (
-                            question.id,
-                            section_id,
-                            user_id,
-                            question.title,
-                            question.text,
-                            question.created_at.isoformat(),
-                            question.status,
-                        ),
-                    )
-                    connection.commit()
-                    return redirect("faq:detail", question_id=question.id)
+
+        if not author_name:
+            error = "Укажите имя автора."
+        elif domain_section is None:
+            error = "Выберите доступный раздел."
         else:
-            error = ""
+            try:
+                domain_question = create_question(
+                    [],
+                    domain_section,
+                    role="user",
+                    is_authenticated=True,
+                    title=title,
+                    text=text,
+                    author=author_name,
+                )
+            except (PermissionError, ValueError) as exception:
+                error = str(exception)
+            else:
+                with transaction.atomic():
+                    author, _ = User.objects.get_or_create(name=author_name)
+                    question = Question.objects.create(
+                        section=selected_section,
+                        author=author,
+                        title=domain_question.title,
+                        text=domain_question.text,
+                        created_at=domain_question.created_at,
+                        status=domain_question.status,
+                    )
+                return redirect("faq:detail", question_id=question.pk)
 
     return render(
         request,
@@ -241,90 +181,64 @@ def question_create(request):
 
 @require_http_methods(["GET", "POST"])
 def question_detail(request, question_id: int):
-    """Показать вопрос и ответы, при POST сохранить ответ в SQLite."""
-    with closing(_connection()) as connection:
-        row = connection.execute(
-            """
-            SELECT q.id, q.title, q.text, q.created_at, q.status,
-                   s.name AS section_name, u.name AS question_author
-            FROM questions AS q
-            JOIN sections AS s ON s.id = q.section_id
-            JOIN users AS u ON u.id = q.user_id
-            WHERE q.id = ?
-            """,
-            (question_id,),
-        ).fetchone()
-        if row is None:
-            raise Http404("Вопрос не найден")
-        question = Question(
-            id=row["id"],
-            section=row["section_name"],
-            title=row["title"],
-            text=row["text"],
-            author=User(row["question_author"]),
-            created_at=date.fromisoformat(row["created_at"]),
-            status=row["status"],
-        )
-        question.answers = [
-            Answer(
-                author=User(answer["author"]),
-                text=answer["text"],
-                created_at=date.fromisoformat(answer["created_at"]),
+    """Показать вопрос и ответы, при POST сохранить ответ через ORM."""
+    question = get_object_or_404(
+        _questions_with_answers(),
+        pk=question_id,
+    )
+    answers = list(question.answers.all())
+    error = ""
+    if request.method == "POST":
+        author_name = request.POST.get("author", "").strip()
+        text = request.POST.get("text", "")
+        if not author_name:
+            error = "Укажите имя автора."
+        else:
+            domain_question = DomainQuestion(
+                id=question.pk,
+                section=question.section.name,
+                title=question.title,
+                text=question.text,
+                author=DomainUser(question.author.name),
+                created_at=question.created_at,
+                status=question.status,
+                answers=[
+                    DomainAnswer(
+                        DomainUser(answer.author.name),
+                        answer.text,
+                        answer.created_at,
+                    )
+                    for answer in answers
+                ],
             )
-            for answer in connection.execute(
-                """
-                SELECT a.text, a.created_at, u.name AS author
-                FROM answers AS a
-                JOIN users AS u ON u.id = a.user_id
-                WHERE a.question_id = ?
-                ORDER BY a.id
-                """,
-                (question_id,),
-            )
-        ]
-
-        error = ""
-        if request.method == "POST":
-            author = request.POST.get("author", "").strip()
-            text = request.POST.get("text", "")
-            if not author:
-                error = "Укажите имя автора."
+            try:
+                domain_answer = create_answer(
+                    [domain_question],
+                    role="user",
+                    is_authenticated=True,
+                    question_id=question.pk,
+                    text=text,
+                    author=author_name,
+                )
+            except (LookupError, PermissionError, ValueError) as exception:
+                error = str(exception)
             else:
-                try:
-                    answer = create_answer(
-                        [question],
-                        role="user",
-                        is_authenticated=True,
-                        question_id=question_id,
-                        text=text,
+                with transaction.atomic():
+                    author, _ = User.objects.get_or_create(name=author_name)
+                    Answer.objects.create(
+                        question=question,
                         author=author,
+                        text=domain_answer.text,
+                        created_at=domain_answer.created_at,
                     )
-                except (LookupError, PermissionError, ValueError) as exception:
-                    error = str(exception)
-                else:
-                    user_id = _get_or_create_user_id(connection, author)
-                    connection.execute(
-                        """
-                        INSERT INTO answers (
-                            question_id, user_id, text, created_at
-                        )
-                        VALUES (?, ?, ?, ?)
-                        """,
-                        (
-                            question_id,
-                            user_id,
-                            answer.text,
-                            answer.created_at.isoformat(),
-                        ),
-                    )
-                    connection.commit()
-                    return redirect("faq:detail", question_id=question_id)
+                return redirect("faq:detail", question_id=question.pk)
 
     return render(
         request,
         "faq_web/question_detail.html",
         {
             "question": question,
+            "answers": answers,
             "form_data": request.POST if request.method == "POST" else {},
             "error": error,
         },
@@ -333,26 +247,24 @@ def question_detail(request, question_id: int):
 
 
 def statistics(request):
-    """Показать статистику вопросов и ответов по тематическим разделам."""
-    with closing(_connection()) as connection:
-        sections = connection.execute(
-            """
-            SELECT s.name, COUNT(DISTINCT q.id) AS questions_count,
-                   COUNT(a.id) AS answers_count
-            FROM sections AS s
-            LEFT JOIN questions AS q ON q.section_id = s.id
-            LEFT JOIN answers AS a ON a.question_id = q.id
-            GROUP BY s.id, s.name
-            ORDER BY questions_count DESC, s.name
-            """
-        ).fetchall()
-        totals = connection.execute(
-            """
-            SELECT
-                (SELECT COUNT(*) FROM questions) AS questions_count,
-                (SELECT COUNT(*) FROM answers) AS answers_count
-            """
-        ).fetchone()
+    """Показать агрегированную статистику вопросов и ответов."""
+    sections = Section.objects.annotate(
+        questions_count=Count("questions", distinct=True),
+        answers_count=Count("questions__answers", distinct=True),
+    ).order_by("-questions_count", "name").values(
+        "name",
+        "questions_count",
+        "answers_count",
+    )
+    question_totals = Question.objects.aggregate(
+        questions_count=Count("pk"),
+        closed_questions=Count("pk", filter=Q(status=Question.Status.CLOSED)),
+    )
+    question_totals["open_questions"] = Question.objects.exclude(
+        status=Question.Status.CLOSED
+    ).count()
+    answer_totals = Answer.objects.aggregate(answers_count=Count("pk"))
+    totals = {**question_totals, **answer_totals}
     return render(
         request,
         "faq_web/statistics.html",

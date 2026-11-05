@@ -9,6 +9,7 @@ from storage import load_data
 
 def import_data(connection: sqlite3.Connection, json_path: Path) -> None:
     """Импортировать разделы, вопросы, авторов и ответы в одну транзакцию."""
+    # Проверка на повторный импорт
     existing_questions = connection.execute(
         "SELECT COUNT(*) FROM questions"
     ).fetchone()[0]
@@ -18,18 +19,22 @@ def import_data(connection: sqlite3.Connection, json_path: Path) -> None:
             "импортом."
         )
 
+    # Загрузка данных из JSON
     sections, questions = load_data(json_path)
+    # Создание разделов и авторов, на которых будут ссылки
     connection.executemany(
         "INSERT INTO sections (name, is_active) VALUES (?, ?)",
         [(section.name, int(section.is_active)) for section in sections],
     )
 
+    # сбор и импорт пользователей
     user_names = set()
     for question in questions:
         user_names.add(question.author.name)
         for answer in question.answers:
             user_names.add(answer.author.name)
 
+    # Сохранение id пользователей для внешних ключей
     users = {}
     for name in user_names:
         cursor = connection.execute(
@@ -50,6 +55,7 @@ def import_data(connection: sqlite3.Connection, json_path: Path) -> None:
                 f"Для вопроса {question.id} не найден раздел "
                 f"«{question.section}»."
             )
+        # импорт разделов
         connection.execute(
             """
             INSERT INTO questions (
@@ -91,8 +97,10 @@ def main() -> None:
     try:
         connection.executescript(schema_path.read_text(encoding="utf-8"))
         import_data(connection, PROJECT_DIR / "data" / "faq.json")
+        # Подтверждаем импорт только после успешной вставки всех данных
         connection.commit()
     except Exception:
+        # Отменяем частичный импорт при ошибке
         connection.rollback()
         raise
     finally:

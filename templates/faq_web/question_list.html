@@ -21,24 +21,68 @@
         >
     </div>
     <div class="col-auto">
-        <button class="btn btn-outline-primary" type="submit">
-            Найти за дату
-        </button>
-        {% if question_date %}
-            <a class="btn btn-outline-secondary" href="{% url 'faq:list' %}">
-                Сбросить
-            </a>
-        {% endif %}
+        <label class="form-label" for="question-section">Раздел</label>
+        <select class="form-select" id="question-section" name="section">
+            <option value="">Все разделы</option>
+            {% for section in sections %}
+                <option
+                    value="{{ section.name }}"
+                    {% if selected_section == section.name %}selected{% endif %}
+                >{{ section.name }}</option>
+            {% endfor %}
+        </select>
+    </div>
+    <div class="col-auto">
+        <label class="form-label" for="question-author">Автор</label>
+        <input
+            class="form-control"
+            id="question-author"
+            name="author"
+            value="{{ author_name }}"
+        >
+    </div>
+    <div class="col-auto">
+        <label class="form-label" for="question-search">Поиск</label>
+        <input
+            class="form-control"
+            id="question-search"
+            name="q"
+            value="{{ search_query }}"
+        >
+    </div>
+    <div class="col-auto">
+        <label class="form-label" for="question-sort">Сортировка</label>
+        <select class="form-select" id="question-sort" name="sort">
+            <option value="date" {% if sort == "date" %}selected{% endif %}>
+                По дате
+            </option>
+            <option value="title" {% if sort == "title" %}selected{% endif %}>
+                По заголовку
+            </option>
+            <option value="section" {% if sort == "section" %}selected{% endif %}>
+                По разделу
+            </option>
+            <option value="author" {% if sort == "author" %}selected{% endif %}>
+                По автору
+            </option>
+        </select>
+    </div>
+    <div class="col-auto">
+        <button class="btn btn-outline-primary" type="submit">Найти</button>
+        <a class="btn btn-outline-secondary" href="{% url 'faq:list' %}">
+            Сбросить
+        </a>
     </div>
 </form>
+{% if error %}
+    <p class="text-danger" role="alert">{{ error }}</p>
+{% endif %}
 {% if questions %}
     <div class="list-group">
-        <!-- for перебор вопросов вывод в блок html, передаваемая коллекция views.py-->
         {% for question in questions %}
-        <!-- question.id - 5 -->
             <a
                 class="list-group-item list-group-item-action"
-                href="{% url 'faq:detail' question.id %}"
+                href="{% url 'faq:detail' question.pk %}"
             >
                 <div class="d-flex justify-content-between gap-3">
                     <h2 class="h5 mb-1">
@@ -47,11 +91,10 @@
                     {% include "faq_web/includes/question_status.html" with question=question %}
                 </div>
                 <p class="mb-1 text-body-secondary">
-                    <!-- question.author|upper -->
-                    {{ question.section }} · {{ question.author }}
+                    {{ question.section_name }} · {{ question.author_name }}
                 </p>
                 <small>
-                    Ответов: {{ question.answers|length }} ·
+                    Ответов: {{ question.answer_count }} ·
                     {{ question.created_at|date:"d.m.Y" }}
                 </small>
             </a>
@@ -59,5 +102,49 @@
     </div>
 {% else %}
     <p class="text-body-secondary">Пока нет вопросов.</p>
+{% endif %}
+{% if page_obj.paginator.num_pages > 1 %}
+    <nav aria-label="Навигация по страницам" class="mt-4">
+        <ul class="pagination justify-content-center">
+            {% if page_obj.has_previous %}
+                <li class="page-item">
+                    <a
+                        class="page-link"
+                        href="{% querystring page=page_obj.previous_page_number %}"
+                    >Назад</a>
+                </li>
+            {% else %}
+                <li class="page-item disabled">
+                    <span class="page-link">Назад</span>
+                </li>
+            {% endif %}
+            {% for page_number in page_obj.paginator.page_range %}
+                {% if page_number == page_obj.number %}
+                    <li class="page-item active" aria-current="page">
+                        <span class="page-link">{{ page_number }}</span>
+                    </li>
+                {% else %}
+                    <li class="page-item">
+                        <a
+                            class="page-link"
+                            href="{% querystring page=page_number %}"
+                        >{{ page_number }}</a>
+                    </li>
+                {% endif %}
+            {% endfor %}
+            {% if page_obj.has_next %}
+                <li class="page-item">
+                    <a
+                        class="page-link"
+                        href="{% querystring page=page_obj.next_page_number %}"
+                    >Далее</a>
+                </li>
+            {% else %}
+                <li class="page-item disabled">
+                    <span class="page-link">Далее</span>
+                </li>
+            {% endif %}
+        </ul>
+    </nav>
 {% endif %}
 {% endblock %}
