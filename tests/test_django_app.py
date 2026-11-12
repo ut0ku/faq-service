@@ -71,10 +71,26 @@ class FaqPagesTests(TestCase):
 
     def test_question_list_links_to_dynamic_detail_pages(self):
         response = self.client.get("/faq/")
+        question = Question.objects.get(pk=1)
 
         self.assertEqual(response.status_code, 200)
         self.assertContains(response, "Как преобразовать строку в число?")
-        self.assertContains(response, 'href="/faq/1/"')
+        self.assertContains(response, f'href="{question.get_absolute_url()}"')
+
+    def test_question_slugs_are_unique_and_open_their_detail_pages(self):
+        question = Question.objects.get(pk=1)
+        duplicate = Question.objects.create(
+            section=question.section,
+            author=question.author,
+            title=question.title,
+            text="Похожий вопрос",
+        )
+
+        self.assertNotEqual(question.slug, duplicate.slug)
+        self.assertEqual(
+            self.client.get(question.get_absolute_url()).status_code,
+            200,
+        )
 
     def test_question_list_can_filter_by_creation_date(self):
         response = self.client.get("/faq/", {"date": "2026-10-01"})
@@ -111,18 +127,14 @@ class FaqPagesTests(TestCase):
     def test_pagination_keeps_filters_and_sorting(self):
         author = User.objects.get(name="ivan_petrov")
         section = Section.objects.get(name="Python")
-        Question.objects.bulk_create(
-            [
-                Question(
-                    section=section,
-                    author=author,
-                    title=f"Дополнительный вопрос {number}",
-                    text="Тестовый текст",
-                    created_at="2026-10-11",
-                )
-                for number in range(6)
-            ]
-        )
+        for number in range(6):
+            Question.objects.create(
+                section=section,
+                author=author,
+                title=f"Дополнительный вопрос {number}",
+                text="Тестовый текст",
+                created_at="2026-10-11",
+            )
 
         response = self.client.get(
             "/faq/",
@@ -143,7 +155,8 @@ class FaqPagesTests(TestCase):
         self.assertEqual(invalid_page.context["page_obj"].number, 1)
 
     def test_question_detail_shows_answers(self):
-        response = self.client.get("/faq/1/")
+        question = Question.objects.get(pk=1)
+        response = self.client.get(question.get_absolute_url())
 
         self.assertEqual(response.status_code, 200)
         self.assertContains(response, "Как из str получить int?")
@@ -195,6 +208,25 @@ class FaqPagesTests(TestCase):
         self.assertEqual(question.answers.count(), 1)
         self.assertEqual(question.author.authored_questions.count(), 1)
 
+    def test_question_queryset_filters_open_and_closed_questions(self):
+        self.assertEqual(
+            set(Question.objects.open().values_list("pk", flat=True)),
+            {2, 4, 5},
+        )
+        self.assertEqual(
+            set(Question.objects.closed().values_list("pk", flat=True)),
+            {1, 3},
+        )
+
+    def test_answer_text_length_is_computed_and_updated_by_database(self):
+        answer = Answer.objects.get(question_id=1)
+
+        self.assertEqual(answer.text_length, len(answer.text))
+
+        Answer.objects.filter(pk=answer.pk).update(text="Короткий ответ")
+        answer.refresh_from_db()
+        self.assertEqual(answer.text_length, len("Короткий ответ"))
+
     def test_admin_can_update_and_delete_questions(self):
         admin_user = get_user_model().objects.create_superuser(
             username="faq_admin",
@@ -214,6 +246,7 @@ class FaqPagesTests(TestCase):
         self.assertEqual(response.status_code, 302)
         question = Question.objects.get(pk=2)
         self.assertEqual(question.status, Question.Status.CLOSED)
+        Answer.objects.filter(question=question).delete()
 
         response = self.client.post(
             reverse("admin:faq_web_question_delete", args=[question.pk]),
@@ -233,6 +266,14 @@ class FaqPagesTests(TestCase):
         self.assertContains(response, "Открытых вопросов: 3")
         self.assertContains(response, "Закрытых вопросов: 2")
         self.assertContains(response, "Python")
+
+    def test_shared_template_context_contains_service_summary(self):
+        response = self.client.get("/")
+
+        self.assertEqual(response.context["site_name"], "FAQ Service")
+        self.assertEqual(response.context["open_questions_count"], 3)
+        self.assertContains(response, "Вопросы")
+        self.assertContains(response, ">3</span>")
 
     @override_settings(DEBUG=False, ALLOWED_HOSTS=["testserver"])
     def test_missing_section_uses_custom_404_page(self):
@@ -256,7 +297,7 @@ class FaqPagesTests(TestCase):
         )
 
         self.assertEqual(response.status_code, 302)
-        self.assertRegex(response.url, r"^/faq/\d+/$")
+        self.assertRegex(response.url, r"^/faq/[a-z0-9-]+/$")
         question_response = self.client.get(response.url)
         self.assertContains(question_response, "Новый вопрос")
         self.assertContains(question_response, "alex")
@@ -284,19 +325,21 @@ class FaqPagesTests(TestCase):
     def test_user_can_answer_open_question(self):
         Question.objects.filter(pk=1).update(status=Question.Status.OPEN)
 
+        question = Question.objects.get(pk=1)
         response = self.client.post(
-            "/faq/1/",
+            question.get_absolute_url(),
             {"author": "  alex  ", "text": "Новый ответ"},
         )
 
-        self.assertRedirects(response, "/faq/1/")
-        detail_response = self.client.get("/faq/1/")
+        self.assertRedirects(response, question.get_absolute_url())
+        detail_response = self.client.get(question.get_absolute_url())
         self.assertContains(detail_response, "Новый ответ")
         self.assertContains(detail_response, "alex")
 
     def test_closed_question_rejects_new_answer(self):
+        question = Question.objects.get(pk=3)
         response = self.client.post(
-            "/faq/3/",
+            question.get_absolute_url(),
             {"author": "alex", "text": "Ответ к закрытому вопросу"},
         )
 
@@ -306,12 +349,12 @@ class FaqPagesTests(TestCase):
             "Вопрос закрыт",
             status_code=400,
         )
-        detail_response = self.client.get("/faq/3/")
+        detail_response = self.client.get(question.get_absolute_url())
         self.assertNotContains(detail_response, "Ответ к закрытому вопросу")
 
     @override_settings(DEBUG=False, ALLOWED_HOSTS=["testserver"])
     def test_missing_question_uses_custom_404_page(self):
-        response = self.client.get("/faq/99999/")
+        response = self.client.get("/faq/unknown-question/")
 
         self.assertEqual(response.status_code, 404)
         self.assertContains(response, "Страница не найдена", status_code=404)

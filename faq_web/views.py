@@ -165,7 +165,7 @@ def question_create(request):
                         created_at=domain_question.created_at,
                         status=domain_question.status,
                     )
-                return redirect("faq:detail", question_id=question.pk)
+                return redirect("faq:detail", slug=question.slug)
 
     return render(
         request,
@@ -180,11 +180,11 @@ def question_create(request):
 
 
 @require_http_methods(["GET", "POST"])
-def question_detail(request, question_id: int):
+def question_detail(request, slug: str):
     """Показать вопрос и ответы, при POST сохранить ответ через ORM."""
     question = get_object_or_404(
         _questions_with_answers(),
-        pk=question_id,
+        slug=slug,
     )
     answers = list(question.answers.all())
     error = ""
@@ -231,7 +231,7 @@ def question_detail(request, question_id: int):
                         text=domain_answer.text,
                         created_at=domain_answer.created_at,
                     )
-                return redirect("faq:detail", question_id=question.pk)
+                return redirect("faq:detail", slug=question.slug)
 
     return render(
         request,
@@ -260,9 +260,7 @@ def statistics(request):
         questions_count=Count("pk"),
         closed_questions=Count("pk", filter=Q(status=Question.Status.CLOSED)),
     )
-    question_totals["open_questions"] = Question.objects.exclude(
-        status=Question.Status.CLOSED
-    ).count()
+    question_totals["open_questions"] = Question.objects.open().count()
     answer_totals = Answer.objects.aggregate(answers_count=Count("pk"))
     totals = {**question_totals, **answer_totals}
     return render(

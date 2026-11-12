@@ -35,6 +35,6 @@ class QuestionAdmin(admin.ModelAdmin):
 
 @admin.register(Answer)
 class AnswerAdmin(admin.ModelAdmin):
-    list_display = ("question", "author", "created_at")
+    list_display = ("question", "author", "created_at", "text_length")
     search_fields = ("text", "author__name", "question__title")
     list_select_related = ("question", "author")

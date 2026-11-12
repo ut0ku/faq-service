@@ -3,6 +3,10 @@
 from datetime import date
 
 from django.db import models
+from django.db.models.functions import Length
+from django.urls import reverse
+from django.utils.text import slugify
+from unidecode import unidecode
 
 
 class Section(models.Model):
@@ -56,12 +60,28 @@ class User(models.Model):
         return self.name
 
 
+class QuestionQuerySet(models.QuerySet):
+    """Запросы вопросов по состоянию обсуждения."""
+
+    def open(self):
+        return self.filter(status=self.model.Status.OPEN)
+
+    def closed(self):
+        return self.filter(status=self.model.Status.CLOSED)
+
+
+class QuestionManager(models.Manager.from_queryset(QuestionQuerySet)):
+    """Менеджер вопросов с фильтрами по статусу."""
+
+
 class Question(models.Model):
     """Вопрос FAQ с автором, разделом и статусом обсуждения."""
 
     class Status(models.TextChoices):
         OPEN = "open", "Открыт"
         CLOSED = "closed", "Закрыт"
+
+    objects = QuestionManager()
 
     section = models.ForeignKey(
         Section,
@@ -84,6 +104,12 @@ class Question(models.Model):
         null=False,
         blank=False,
         verbose_name="Заголовок",
+    )
+    slug = models.SlugField(
+        max_length=220,
+        unique=True,
+        editable=False,
+        verbose_name="URL-идентификатор",
     )
     text = models.TextField(
         null=False,
@@ -113,6 +139,20 @@ class Question(models.Model):
     def __str__(self) -> str:
         return self.title
 
+    def save(self, *args, **kwargs) -> None:
+        if not self.slug:
+            if self._state.adding:
+                super().save(*args, **kwargs)
+            suffix = f"-{self.pk}"
+            base_slug = slugify(unidecode(self.title)) or "question"
+            self.slug = f"{base_slug[:220 - len(suffix)]}{suffix}"
+            super().save(update_fields=["slug"])
+            return
+        super().save(*args, **kwargs)
+
+    def get_absolute_url(self) -> str:
+        return reverse("faq:detail", kwargs={"slug": self.slug})
+
 
 class Answer(models.Model):
     """Ответ пользователя на вопрос."""
@@ -137,6 +177,12 @@ class Answer(models.Model):
         null=False,
         blank=False,
         verbose_name="Текст",
+    )
+    text_length = models.GeneratedField(
+        expression=Length("text"),
+        output_field=models.PositiveIntegerField(),
+        db_persist=True,
+        verbose_name="Длина текста",
     )
     created_at = models.DateField(
         default=date.today,

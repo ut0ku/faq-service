@@ -13,5 +13,5 @@ urlpatterns = [
     path("sections/", views.section_list, name="sections"),
     path("statistics/", views.statistics, name="statistics"),
     # маршрут для отображения деталей вопроса (с конвертером)
-    path("<int:question_id>/", views.question_detail, name="detail"),
+    path("<slug:slug>/", views.question_detail, name="detail"),
 ]

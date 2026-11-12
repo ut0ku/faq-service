@@ -4,7 +4,7 @@
 <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
-    <title>{% block title %}FAQ Service{% endblock %}</title>
+    <title>{% block title %}{{ site_name }}{% endblock %}</title>
     <link
         rel="icon"
         type="image/svg+xml"
@@ -28,7 +28,7 @@
                     width="36"
                     height="36"
                 >
-                <span>FAQ Service</span>
+                <span>{{ site_name }}</span>
             </a>
             {% include "includes/navigation.html" %}
         </div>
@@ -38,7 +38,7 @@
     </main>
     <footer class="container py-3 text-body-secondary">
         <!-- Элемент взаимодействия JS -->
-        <small>© <span id="current-year"></span> FAQ Service</small>
+        <small>© <span id="current-year"></span> {{ site_name }}</small>
     </footer>
     <!-- Подключение JavaScript -->
     <script src="{% static 'js/main.js' %}"></script>
