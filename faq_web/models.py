@@ -11,9 +11,21 @@ class Section(models.Model):
     name = models.CharField(
         max_length=100,
         unique=True,
+        null=False,
+        blank=False,
         verbose_name="Название",
     )
-    is_active = models.BooleanField(default=True, verbose_name="Активен")
+    is_active = models.BooleanField(
+        default=True,
+        null=False,
+        blank=False,
+        verbose_name="Активен",
+    )
+    #description = models.TextField(
+    #    blank=True,
+    #    default="",
+    #    verbose_name="Описание",
+    #)
 
     class Meta:
         ordering = ["name"]
@@ -27,7 +39,13 @@ class Section(models.Model):
 class User(models.Model):
     """Автор вопроса или ответа."""
 
-    name = models.CharField(max_length=80, unique=True, verbose_name="Имя")
+    name = models.CharField(
+        max_length=80,
+        unique=True,
+        null=False,
+        blank=False,
+        verbose_name="Имя",
+    )
 
     class Meta:
         ordering = ["name"]
@@ -47,23 +65,43 @@ class Question(models.Model):
 
     section = models.ForeignKey(
         Section,
-        on_delete=models.PROTECT,
-        related_name="questions",
+        on_delete=models.PROTECT,  # запрет удаления если есть ссылка
+        related_name="questions", # назначение имени обратной связи | question_section
+        null=False,
+        blank=False,
         verbose_name="Раздел",
     )
     author = models.ForeignKey(
         User,
         on_delete=models.PROTECT,
         related_name="authored_questions",
+        null=False,
+        blank=False,
         verbose_name="Автор",
     )
-    title = models.CharField(max_length=200, verbose_name="Заголовок")
-    text = models.TextField(verbose_name="Текст")
-    created_at = models.DateField(default=date.today, verbose_name="Дата")
+    title = models.CharField(
+        max_length=200,
+        null=False,
+        blank=False,
+        verbose_name="Заголовок",
+    )
+    text = models.TextField(
+        null=False,
+        blank=False,
+        verbose_name="Текст",
+    )
+    created_at = models.DateField(
+        default=date.today,
+        null=False,
+        blank=False,
+        verbose_name="Дата",
+    )
     status = models.CharField(
         max_length=6,
-        choices=Status.choices,
-        default=Status.OPEN,
+        choices=Status.choices,  # Open / Closed
+        default=Status.CLOSED, # CLOSED
+        null=False,
+        blank=False,
         verbose_name="Статус",
     )
 
@@ -81,18 +119,31 @@ class Answer(models.Model):
 
     question = models.ForeignKey(
         Question,
-        on_delete=models.CASCADE,
+        on_delete=models.PROTECT,  # удаление связанных записей | PROTECT
         related_name="answers",
+        null=False,
+        blank=False,
         verbose_name="Вопрос",
     )
     author = models.ForeignKey(
         User,
         on_delete=models.PROTECT,
         related_name="authored_answers",
+        null=False,
+        blank=False,
         verbose_name="Автор",
     )
-    text = models.TextField(verbose_name="Текст")
-    created_at = models.DateField(default=date.today, verbose_name="Дата")
+    text = models.TextField(
+        null=False,
+        blank=False,
+        verbose_name="Текст",
+    )
+    created_at = models.DateField(
+        default=date.today,
+        null=False,
+        blank=False,
+        verbose_name="Дата",
+    )
 
     class Meta:
         ordering = ["pk"]
