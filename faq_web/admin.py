@@ -14,14 +14,26 @@ class SectionAdmin(admin.ModelAdmin):
 
 @admin.register(User)
 class UserAdmin(admin.ModelAdmin):
+    list_display = ("name",)
     search_fields = ("name",)
+
+
+class AnswerInline(admin.TabularInline):
+    model = Answer
+    extra = 1
 
 
 @admin.register(Question)
 class QuestionAdmin(admin.ModelAdmin):
     list_display = ("title", "section", "author", "created_at", "status")
+    inlines = (AnswerInline,)
+    # Сортировка по дате создания
+    ordering = ("-created_at", "-pk")
+    # фильтр
     list_filter = ("status", "section")
+    # поиск
     search_fields = ("title", "text", "author__name")
+    # оптимизация Json (предзагрузка fk в одном запросе)
     list_select_related = ("section", "author")
     actions = ("close_questions",)
 

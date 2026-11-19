@@ -14,7 +14,11 @@ class Migration(migrations.Migration):
         migrations.AddField(
             model_name="section",
             name="description",
-            field=models.TextField(blank=True, default="", verbose_name="Описание"),
+            field=models.TextField(
+                blank=True,
+                default="",
+                verbose_name="Описание",
+            ),
         ),
         migrations.AlterField(
             model_name="answer",

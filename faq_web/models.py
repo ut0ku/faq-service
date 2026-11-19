@@ -25,11 +25,11 @@ class Section(models.Model):
         blank=False,
         verbose_name="Активен",
     )
-    #description = models.TextField(
-    #    blank=True,
-    #    default="",
-    #    verbose_name="Описание",
-    #)
+    # description = models.TextField(
+    #     blank=True,
+    #     default="",
+    #     verbose_name="Описание",
+    # )
 
     class Meta:
         ordering = ["name"]
@@ -86,7 +86,7 @@ class Question(models.Model):
     section = models.ForeignKey(
         Section,
         on_delete=models.PROTECT,  # запрет удаления если есть ссылка
-        related_name="questions", # назначение имени обратной связи | question_section
+        related_name="questions",  # Имя обратной связи.
         null=False,
         blank=False,
         verbose_name="Раздел",
@@ -125,7 +125,7 @@ class Question(models.Model):
     status = models.CharField(
         max_length=6,
         choices=Status.choices,  # Open / Closed
-        default=Status.CLOSED, # CLOSED
+        default=Status.CLOSED,  # CLOSED
         null=False,
         blank=False,
         verbose_name="Статус",

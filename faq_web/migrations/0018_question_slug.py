@@ -4,14 +4,15 @@ from django.db import migrations, models
 from django.utils.text import slugify
 from unidecode import unidecode
 
-
+# Обратботка существующих записей (заполнение slug)
+# передача реестра моделей на момент миграции
 def populate_question_slugs(apps, schema_editor):
-    question_model = apps.get_model("faq_web", "Question")
+    question_model = apps.get_model("faq_web", "Question") # получение исторической версии
     for question in question_model.objects.all().order_by("pk").iterator():
         suffix = f"-{question.pk}"
         base_slug = slugify(unidecode(question.title)) or "question"
-        question.slug = f"{base_slug[:220 - len(suffix)]}{suffix}"
-        question.save(update_fields=["slug"])
+        question.slug = f"{base_slug[:220 - len(suffix)]}{suffix}" # обрезка до 220 символов
+        question.save(update_fields=["slug"]) # обновление поля slug
 
 
 class Migration(migrations.Migration):
@@ -20,7 +21,9 @@ class Migration(migrations.Migration):
         ("faq_web", "0017_alter_answer_question"),
     ]
 
+# обработка существующих записей
     operations = [
+        # временное поле с разрешенными Null
         migrations.AddField(
             model_name="question",
             name="slug",
@@ -36,6 +39,7 @@ class Migration(migrations.Migration):
             populate_question_slugs,
             migrations.RunPython.noop,
         ),
+        # Изменение поля на уникальное и запрет Null
         migrations.AlterField(
             model_name="question",
             name="slug",
