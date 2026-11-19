@@ -1,9 +1,15 @@
 """Проверки страниц Django-приложения FAQ."""
 
+from io import BytesIO
+import random
+import tempfile
+
 from django.conf import settings
 from django.contrib.auth import get_user_model
+from django.core.files.uploadedfile import SimpleUploadedFile
 from django.test import Client, TestCase, override_settings
 from django.urls import reverse
+from PIL import Image
 
 from faq_web.models import Answer, Question, Section, User
 from storage import load_data
@@ -87,6 +93,7 @@ class FaqPagesTests(TestCase):
         )
 
         self.assertNotEqual(question.slug, duplicate.slug)
+        self.assertEqual(duplicate.status, Question.Status.OPEN)
         self.assertEqual(
             self.client.get(question.get_absolute_url()).status_code,
             200,
@@ -120,9 +127,16 @@ class FaqPagesTests(TestCase):
         self.assertEqual(response.context["questions"][0].pk, 3)
         invalid_sort = self.client.get("/faq/", {"sort": "not-a-field"})
         self.assertEqual(invalid_sort.context["sort"], "date")
+        self.assertIn("sort", invalid_sort.context["filter_form"].errors)
         invalid_date = self.client.get("/faq/", {"date": "not-a-date"})
         self.assertContains(invalid_date, "Укажите корректную дату.")
         self.assertContains(invalid_date, "Пока нет вопросов.")
+        invalid_section = self.client.get(
+            "/faq/",
+            {"section": "Несуществующий раздел"},
+        )
+        self.assertEqual(invalid_section.status_code, 200)
+        self.assertIn("section", invalid_section.context["filter_form"].errors)
 
     def test_pagination_keeps_filters_and_sorting(self):
         author = User.objects.get(name="ivan_petrov")
@@ -256,6 +270,124 @@ class FaqPagesTests(TestCase):
         self.assertEqual(response.status_code, 302)
         self.assertFalse(Question.objects.filter(pk=question.pk).exists())
 
+    def test_staff_can_edit_question_without_changing_author_or_status(self):
+        question = Question.objects.get(pk=2)
+        original_author = question.author
+        staff_user = get_user_model().objects.create_user(
+            username="faq_staff",
+            password="test-password",
+            is_staff=True,
+        )
+        self.client.force_login(staff_user)
+
+        response = self.client.get(reverse("faq:edit", args=[question.slug]))
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, question.title)
+        response = self.client.post(
+            reverse("faq:edit", args=[question.slug]),
+            {
+                "section": question.section.name,
+                "title": "Изменённый заголовок",
+                "text": "Изменённый текст вопроса",
+            },
+        )
+
+        self.assertRedirects(response, question.get_absolute_url())
+        question.refresh_from_db()
+        self.assertEqual(question.title, "Изменённый заголовок")
+        self.assertEqual(question.text, "Изменённый текст вопроса")
+        self.assertEqual(question.author, original_author)
+        self.assertEqual(question.status, Question.Status.OPEN)
+
+    def test_non_staff_cannot_edit_or_close_questions(self):
+        question = Question.objects.get(pk=2)
+
+        edit_response = self.client.get(
+            reverse("faq:edit", args=[question.slug])
+        )
+        close_response = self.client.post(
+            reverse("faq:close", args=[question.slug])
+        )
+
+        self.assertEqual(edit_response.status_code, 302)
+        self.assertEqual(close_response.status_code, 302)
+        question.refresh_from_db()
+        self.assertEqual(question.status, Question.Status.OPEN)
+
+    def test_staff_edit_and_close_forms_require_csrf_tokens(self):
+        question = Question.objects.get(pk=2)
+        staff_user = get_user_model().objects.create_user(
+            username="faq_csrf_staff",
+            password="test-password",
+            is_staff=True,
+        )
+        client = Client(enforce_csrf_checks=True)
+        client.force_login(staff_user)
+
+        edit_response = client.post(
+            reverse("faq:edit", args=[question.slug]),
+            {
+                "section": question.section.name,
+                "title": question.title,
+                "text": question.text,
+            },
+        )
+        close_response = client.post(
+            reverse("faq:close", args=[question.slug])
+        )
+
+        self.assertEqual(edit_response.status_code, 403)
+        self.assertEqual(close_response.status_code, 403)
+        question.refresh_from_db()
+        self.assertEqual(question.status, Question.Status.OPEN)
+
+    def test_staff_can_close_questions_only_with_post(self):
+        question = Question.objects.get(pk=2)
+        staff_user = get_user_model().objects.create_user(
+            username="faq_moderator",
+            password="test-password",
+            is_staff=True,
+        )
+        self.client.force_login(staff_user)
+
+        get_response = self.client.get(
+            reverse("faq:close", args=[question.slug])
+        )
+        self.assertEqual(get_response.status_code, 405)
+        question.refresh_from_db()
+        self.assertEqual(question.status, Question.Status.OPEN)
+
+        response = self.client.post(
+            reverse("faq:close", args=[question.slug])
+        )
+
+        self.assertRedirects(response, question.get_absolute_url())
+        question.refresh_from_db()
+        self.assertEqual(question.status, Question.Status.CLOSED)
+        self.assertNotContains(
+            self.client.get(question.get_absolute_url()),
+            "Закрыть вопрос",
+        )
+
+    def test_edit_and_close_return_404_for_missing_question(self):
+        staff_user = get_user_model().objects.create_user(
+            username="faq_staff_missing",
+            password="test-password",
+            is_staff=True,
+        )
+        self.client.force_login(staff_user)
+
+        edit_response = self.client.get(
+            reverse("faq:edit", args=["unknown-question"])
+        )
+        close_response = self.client.post(
+            reverse("faq:close", args=["unknown-question"])
+        )
+
+        self.assertEqual(edit_response.status_code, 404)
+        self.assertEqual(close_response.status_code, 404)
+
     def test_statistics_page_shows_question_and_answer_counts(self):
         response = self.client.get("/faq/statistics/")
 
@@ -301,6 +433,107 @@ class FaqPagesTests(TestCase):
         question_response = self.client.get(response.url)
         self.assertContains(question_response, "Новый вопрос")
         self.assertContains(question_response, "alex")
+        question = Question.objects.get(slug=response.url.split("/")[-2])
+        self.assertEqual(question.status, Question.Status.OPEN)
+
+    def test_user_can_upload_image_with_question(self):
+        image_buffer = BytesIO()
+        Image.new("RGB", (10, 10), color="blue").save(
+            image_buffer,
+            format="PNG",
+        )
+        image = SimpleUploadedFile(
+            "question.png",
+            image_buffer.getvalue(),
+            content_type="image/png",
+        )
+
+        with tempfile.TemporaryDirectory() as media_root:
+            with override_settings(MEDIA_ROOT=media_root):
+                response = self.client.post(
+                    "/faq/new/",
+                    {
+                        "author": "alex",
+                        "section": "Python",
+                        "title": "Вопрос с изображением",
+                        "text": "Текст вопроса с изображением",
+                        "image": image,
+                    },
+                )
+
+                self.assertEqual(response.status_code, 302)
+                question = Question.objects.get(
+                    title="Вопрос с изображением"
+                )
+                self.assertTrue(question.image.name.startswith("questions/"))
+                self.assertTrue(
+                    question.image.storage.exists(question.image.name)
+                )
+                detail_response = self.client.get(question.get_absolute_url())
+                self.assertContains(detail_response, question.image.url)
+
+    def test_question_image_must_be_an_image_and_within_size_limit(self):
+        invalid_image = SimpleUploadedFile(
+            "not-an-image.png",
+            b"not an image",
+            content_type="image/png",
+        )
+        invalid_response = self.client.post(
+            "/faq/new/",
+            {
+                "author": "alex",
+                "section": "Python",
+                "title": "Некорректное изображение",
+                "text": "Текст вопроса",
+                "image": invalid_image,
+            },
+        )
+        self.assertEqual(invalid_response.status_code, 400)
+        self.assertIn("image", invalid_response.context["form"].errors)
+
+        image_buffer = BytesIO()
+        image_size = (1400, 1300)
+        image_bytes = random.Random(0).randbytes(
+            image_size[0] * image_size[1] * 3
+        )
+        Image.frombytes("RGB", image_size, image_bytes).save(
+            image_buffer, format="PNG"
+        )
+        large_image = SimpleUploadedFile(
+            "large.png",
+            image_buffer.getvalue(),
+            content_type="image/png",
+        )
+        self.assertGreater(len(large_image), 5 * 1024 * 1024)
+        large_response = self.client.post(
+            "/faq/new/",
+            {
+                "author": "alex",
+                "section": "Python",
+                "title": "Слишком большое изображение",
+                "text": "Текст вопроса",
+                "image": large_image,
+            },
+        )
+        self.assertEqual(large_response.status_code, 400)
+        self.assertIn("image", large_response.context["form"].errors)
+
+    def test_question_creation_form_requires_csrf_token(self):
+        client = Client(enforce_csrf_checks=True)
+        response = client.get("/faq/new/")
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, 'name="csrfmiddlewaretoken"')
+        response = client.post(
+            "/faq/new/",
+            {
+                "author": "alex",
+                "section": "Python",
+                "title": "Новый вопрос",
+                "text": "Текст нового вопроса",
+            },
+        )
+        self.assertEqual(response.status_code, 403)
 
     def test_invalid_question_is_not_saved(self):
         response = self.client.post(
@@ -319,6 +552,7 @@ class FaqPagesTests(TestCase):
             "Заголовок слишком короткий",
             status_code=400,
         )
+        self.assertIn("title", response.context["form"].errors)
         list_response = self.client.get("/faq/")
         self.assertNotContains(list_response, "Нет")
 

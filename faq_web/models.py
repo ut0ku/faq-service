@@ -116,6 +116,11 @@ class Question(models.Model):
         blank=False,
         verbose_name="Текст",
     )
+    image = models.ImageField(
+        upload_to="questions/",
+        blank=True,
+        verbose_name="Изображение",
+    )
     created_at = models.DateField(
         default=date.today,
         null=False,
@@ -125,7 +130,7 @@ class Question(models.Model):
     status = models.CharField(
         max_length=6,
         choices=Status.choices,  # Open / Closed
-        default=Status.CLOSED,  # CLOSED
+        default=Status.OPEN,
         null=False,
         blank=False,
         verbose_name="Статус",

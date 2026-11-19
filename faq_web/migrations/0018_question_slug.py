@@ -4,15 +4,18 @@ from django.db import migrations, models
 from django.utils.text import slugify
 from unidecode import unidecode
 
+
 # Обратботка существующих записей (заполнение slug)
 # передача реестра моделей на момент миграции
 def populate_question_slugs(apps, schema_editor):
-    question_model = apps.get_model("faq_web", "Question") # получение исторической версии
+    # Получаем историческую версию модели.
+    question_model = apps.get_model("faq_web", "Question")
     for question in question_model.objects.all().order_by("pk").iterator():
         suffix = f"-{question.pk}"
         base_slug = slugify(unidecode(question.title)) or "question"
-        question.slug = f"{base_slug[:220 - len(suffix)]}{suffix}" # обрезка до 220 символов
-        question.save(update_fields=["slug"]) # обновление поля slug
+        # Обрезаем слаг до максимальной длины поля.
+        question.slug = f"{base_slug[:220 - len(suffix)]}{suffix}"
+        question.save(update_fields=["slug"])  # обновляем поле slug
 
 
 class Migration(migrations.Migration):

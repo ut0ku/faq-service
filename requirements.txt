@@ -2,3 +2,4 @@ Django==5.2.*
 Unidecode==1.4.*
 django-debug-toolbar==6.1.*
 pytest-django==4.11.*
+Pillow>=10.0

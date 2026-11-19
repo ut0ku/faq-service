@@ -11,61 +11,49 @@
 </p>
 <form method="get" class="row g-2 align-items-end mb-4">
     <div class="col-auto">
-        <label class="form-label" for="question-date">Дата вопроса</label>
-        <input
-            class="form-control"
-            id="question-date"
-            name="date"
-            type="date"
-            value="{{ question_date }}"
-        >
+        <label class="form-label" for="{{ filter_form.date.id_for_label }}">
+            {{ filter_form.date.label }}
+        </label>
+        {{ filter_form.date }}
+        {% for error in filter_form.date.errors %}
+            <div class="text-danger" role="alert">{{ error }}</div>
+        {% endfor %}
     </div>
     <div class="col-auto">
-        <label class="form-label" for="question-section">Раздел</label>
-        <select class="form-select" id="question-section" name="section">
-            <option value="">Все разделы</option>
-            {% for section in sections %}
-                <option
-                    value="{{ section.name }}"
-                    {% if selected_section == section.name %}selected{% endif %}
-                >{{ section.name }}</option>
-            {% endfor %}
-        </select>
+        <label class="form-label" for="{{ filter_form.section.id_for_label }}">
+            {{ filter_form.section.label }}
+        </label>
+        {{ filter_form.section }}
+        {% for error in filter_form.section.errors %}
+            <div class="text-danger" role="alert">{{ error }}</div>
+        {% endfor %}
     </div>
     <div class="col-auto">
-        <label class="form-label" for="question-author">Автор</label>
-        <input
-            class="form-control"
-            id="question-author"
-            name="author"
-            value="{{ author_name }}"
-        >
+        <label class="form-label" for="{{ filter_form.author.id_for_label }}">
+            {{ filter_form.author.label }}
+        </label>
+        {{ filter_form.author }}
+        {% for error in filter_form.author.errors %}
+            <div class="text-danger" role="alert">{{ error }}</div>
+        {% endfor %}
     </div>
     <div class="col-auto">
-        <label class="form-label" for="question-search">Поиск</label>
-        <input
-            class="form-control"
-            id="question-search"
-            name="q"
-            value="{{ search_query }}"
-        >
+        <label class="form-label" for="{{ filter_form.q.id_for_label }}">
+            {{ filter_form.q.label }}
+        </label>
+        {{ filter_form.q }}
+        {% for error in filter_form.q.errors %}
+            <div class="text-danger" role="alert">{{ error }}</div>
+        {% endfor %}
     </div>
     <div class="col-auto">
-        <label class="form-label" for="question-sort">Сортировка</label>
-        <select class="form-select" id="question-sort" name="sort">
-            <option value="date" {% if sort == "date" %}selected{% endif %}>
-                По дате
-            </option>
-            <option value="title" {% if sort == "title" %}selected{% endif %}>
-                По заголовку
-            </option>
-            <option value="section" {% if sort == "section" %}selected{% endif %}>
-                По разделу
-            </option>
-            <option value="author" {% if sort == "author" %}selected{% endif %}>
-                По автору
-            </option>
-        </select>
+        <label class="form-label" for="{{ filter_form.sort.id_for_label }}">
+            {{ filter_form.sort.label }}
+        </label>
+        {{ filter_form.sort }}
+        {% for error in filter_form.sort.errors %}
+            <div class="text-danger" role="alert">{{ error }}</div>
+        {% endfor %}
     </div>
     <div class="col-auto">
         <button class="btn btn-outline-primary" type="submit">Найти</button>
@@ -74,9 +62,6 @@
         </a>
     </div>
 </form>
-{% if error %}
-    <p class="text-danger" role="alert">{{ error }}</p>
-{% endif %}
 {% if questions %}
     <div class="list-group">
         {% for question in questions %}

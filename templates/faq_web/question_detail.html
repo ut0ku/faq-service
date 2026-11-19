@@ -19,6 +19,31 @@
             {{ question.created_at|date:"d.m.Y" }}
         </p>
         <p class="question-text">{{ question.text }}</p>
+        {% if question.image %}
+            <img
+                class="img-fluid rounded"
+                src="{{ question.image.url }}"
+                alt="Изображение к вопросу: {{ question.title }}"
+            >
+        {% endif %}
+        {% if user.is_staff %}
+            <a
+                class="btn btn-outline-primary"
+                href="{% url 'faq:edit' question.slug %}"
+            >Редактировать вопрос</a>
+            {% if question.status == "open" %}
+                <form
+                    method="post"
+                    action="{% url 'faq:close' question.slug %}"
+                    class="d-inline"
+                >
+                    {% csrf_token %}
+                    <button class="btn btn-outline-danger" type="submit">
+                        Закрыть вопрос
+                    </button>
+                </form>
+            {% endif %}
+        {% endif %}
     </div>
 </article>
 
